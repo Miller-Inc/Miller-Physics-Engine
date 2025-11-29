@@ -2,7 +2,9 @@
 #include <iostream>
 #include <MillerCudaLibrary.h>
 #include <thread>
-#include <Engine/EngineClock.h>
+#include <cstdio>
+#include <cstdlib>
+#include "GInstance.h"
 
 int main()
 {
@@ -10,26 +12,33 @@ int main()
 
     Environment env{};
     env.Init();
+    env.GetDeltaTime();
 
-    PhysicsObject* obj1 = env.SpawnPhysicsObject(PhysicsObject::StaticClass());
+    // Spawn the object and validate the returned pointer
+    PhysicsObject* obj1 = env.SpawnPhysicsObject<PhysicsObject>();
+    if (!obj1) {
+        std::fprintf(stderr, "ERROR: SpawnPhysicsObject returned null\n");
+        std::abort();
+    }
+
     const Vector points[] = {
         Vector(0.0f, 0.0f, 0.0f),
         Vector(1.0f, 0.0f, 0.0f),
         Vector(0.0f, 1.0f, 0.0f)
     };
+
+    // Extra guard before touching the object
     obj1->SetPoints(points, 3);
 
-    printf("Object 1: %lld", obj1->GetIdentifier());
-    env.Init();
+    std::printf("Object 1: %lld\n", (long long)obj1->GetIdentifier());
 
     for (int i = 0; i < 100; i++)
     {
         env.TickAll((float)env.GetDeltaTime());
-        // env.TickAll(0.05f); // Simulate a fixed delta time of 0.05 seconds
     }
 
-
-    /// With two objects, fps: ~2500
+    GInstance gameInstance{};
+    gameInstance.Init();
 
     return 0;
 }

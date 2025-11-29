@@ -1,0 +1,16 @@
+[submodule "third_party/imgui"]
+	path = third_party/imgui
+	url = git@github.com:ocornut/imgui.git
+	branch = docking
+[submodule "third_party/sdl3"]
+	path = third_party/sdl3
+	url = git@github.com:libsdl-org/SDL.git
+[submodule "third_party/stb"]
+	path = third_party/stb
+	url = git@github.com:nothings/stb.git
+[submodule "third_party/sdl3_net"]
+	path = third_party/sdl3_net
+	url = git@github.com:libsdl-org/SDL_net.git
+[submodule "third_party/json"]
+	path = third_party/json
+	url = git@github.com:nlohmann/json.git

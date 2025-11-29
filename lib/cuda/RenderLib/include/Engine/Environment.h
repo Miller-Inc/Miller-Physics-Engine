@@ -4,7 +4,6 @@
 
 #pragma once
 #include <vector>
-
 #include "EngineClock.h"
 #include "Engine/EngineCommon.h"
 #include "Physics/PhysicsObject.cuh"
@@ -25,32 +24,23 @@ public:
     void SetTicking(const bool bTick) { bIsTicking = bTick; }
 
     template<typename T>
-    NO_DISCARD T* SpawnPhysicsObject(Constructor<T>* ObjectStaticClass)
+    PhysicsObject* SpawnPhysicsObject()
     {
-        static_assert(std::is_base_of<PhysicsObject, T>::value, "T must derive from PhysicsObject");
+        T* TypedObject = new T();
 
-        // Construct the object (requires T to be default-constructible)
-        T* obj = new T();
+        TypedObject->BeginPlay();
 
-        // If a Constructor<T> is provided and has a BeginPlay function, invoke it via pointer-to-member.
-        if (ObjectStaticClass && ObjectStaticClass->BeginPlayFunc) {
-            (obj->*ObjectStaticClass->BeginPlayFunc)();
-        } else {
-            // Fallback: call the virtual BeginPlay directly.
-            obj->BeginPlay();
-        }
-
-        PhysicsObjects.push_back(static_cast<PhysicsObject*>(obj));
-        return obj;
+        PhysicsObjects.emplace_back(TypedObject);
+        return TypedObject;
     }
 
 protected:
-    std::vector<PhysicsObject*> PhysicsObjects;
+    std::vector<PhysicsObject*> PhysicsObjects{};
 
 private:
-    bool bIsTicking = true;
+    bool bIsTicking = false;
     int64_t mIdentifier = 0;
 
-    DeltaTimer EngineClock; // Delta timer for tracking time between ticks
+    DeltaTimer EngineClock{}; // Delta timer for tracking time between ticks
 };
 

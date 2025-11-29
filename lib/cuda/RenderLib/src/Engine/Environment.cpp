@@ -8,6 +8,7 @@
 Environment::Environment()
 {
     mIdentifier = GetNextIdentifier(); // Initialize identifier counter
+    PhysicsObjects.clear();
 }
 
 Environment::~Environment()
@@ -17,6 +18,10 @@ Environment::~Environment()
 
 void Environment::Init()
 {
+    static bool init = false;
+    if (init)
+        return;
+    init = true;
     EngineClock.Init(); // Initialize the delta timer
     EngineClock.Tick();
 }

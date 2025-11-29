@@ -4,7 +4,8 @@ project(RenderLib LANGUAGES CXX CUDA)
 set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-add_library(RenderLib SHARED src/Test.cu
+add_library(RenderLib SHARED
+        src/Test.cu
         include/MillerCudaLibrary.h
         include/Test.h
         include/defns.h

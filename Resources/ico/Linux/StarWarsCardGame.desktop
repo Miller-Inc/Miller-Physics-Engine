@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=StarWarsCardGame
+GenericName=Star Wars Card Game
+Comment=Remake of the Star Wars Assault Team game
+Exec=StarWarsCardGame
+Icon=StarWarsCardGame
+Terminal=false
+Categories=Development;

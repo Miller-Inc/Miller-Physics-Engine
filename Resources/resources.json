@@ -1,0 +1,60 @@
+{
+  "images": [
+    {
+      "path": "Resources/Textures/palm_trees.png",
+      "name": "Palm Tree",
+      "position": { "x": 0, "y": 0 },
+      "size": { "x": 512, "y": 512 },
+      "scale": { "x": 1, "y": 1 },
+      "pages":
+        [
+          "SW_Window"
+        ]
+
+    }, {
+        "path": "Resources/Textures/image.png",
+        "name": "Beach",
+        "position": { "x": 0, "y": 0 },
+        "size": { "x": 256, "y": 256 },
+        "scale": { "x": 1, "y": 1 },
+        "pages":
+          [
+            "SW_Window"
+          ]
+    },
+    {
+        "path": "Resources/Textures/Backgrounds/opening.png",
+        "name": "Opening Image",
+        "position": { "x": 0, "y": 0 },
+        "size": { "x": 256, "y": 256 },
+        "scale": { "x": 1, "y": 1 },
+        "pages":
+          [
+            "Main Window",
+            "Loading Window"
+          ]
+    },
+    {
+        "path": "Resources/Textures/stormtrooper.png",
+        "name": "Stormtrooper",
+        "position": { "x": 0, "y": 0 },
+        "size": { "x": 256, "y": 256 },
+        "scale": { "x": 1, "y": 1 },
+        "pages":
+          [
+
+          ]
+    },
+    {
+      "path": "Resources/Textures/Backgrounds/stars.png",
+      "name": "Stars",
+      "position": { "x": 0, "y": 0 },
+      "size": { "x": 256, "y": 256 },
+      "scale": { "x": 1, "y": 1 },
+      "pages": [
+        "Main Window",
+        "Loading Window"
+      ]
+    }
+  ]
+}
