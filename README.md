@@ -53,4 +53,11 @@ To get started with the Miller Physics Engine, follow these steps:
    cmake ..
    make
    ```
+   
+## Current Status & Progress
+The Miller Physics Engine is currently in the early stages of development. The core architecture is being 
+designed, and initial implementations of rigid body dynamics and collision detection are underway. 
+We are actively working on optimizing performance and ensuring the engine can handle complex 
+simulations efficiently.
 
+![Recording 12-01-2025](Resources/Miller%20Inc%20Content%20-%20Physics%20Engine%20Preview.gif)
