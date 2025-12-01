@@ -31,15 +31,33 @@ public:
         isOpen = other.isOpen;
     }
     virtual ~WindowBase() = default;
+
+    /// Open the window (should only call once)
     virtual void Open();
-    virtual void Draw();
+
+    /// Draw the window (called every frame)
+    virtual void Draw(float deltaTime);
+
+    /// Close the window (should only call once)
     virtual void Close();
+
+    /// Tick function for updating window state and other logic
+    virtual void Tick(float deltaTime);
+
+    /// Indicates if the window is currently open
     bool isOpen = false;
+
+    /// Name of the window, used to identify it to the resource manager
     std::string Name = "WindowBase";
 protected:
+    /// Pointer to the engine instance
     GInstance* mInstance = nullptr;
+
+    /// Map to hold images/textures associated with this window
     std::map<std::string, MImage*> mTextures{}; // Map to hold textures with string keys
 public:
     WindowBase() = default;
+
+    /// Get the name of the window
     [[nodiscard]] std::string GetName() const { return Name; }
 };

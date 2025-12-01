@@ -6,5 +6,6 @@
 #include "defns.h"
 #include "Engine/Vector.cuh"
 #include "Engine/Quaternion.cuh"
+#include "Engine/Triangle.cuh"
 #include "Engine/EngineClock.h"
 #include "Engine/Constructor.h"

@@ -7,6 +7,8 @@
 #include "EngineClock.h"
 #include "Engine/EngineCommon.h"
 #include "Physics/PhysicsObject.cuh"
+#include "Rendering/Camera.cuh"
+
 
 class Environment
 {
@@ -17,6 +19,7 @@ public:
     virtual void Init();
     virtual void Destroy();
     virtual void TickAll(float deltaTime);
+    virtual RawImage RenderScene();
 
     double GetDeltaTime() { return EngineClock.Tick(); }
 
@@ -24,18 +27,54 @@ public:
     void SetTicking(const bool bTick) { bIsTicking = bTick; }
 
     template<typename T>
-    PhysicsObject* SpawnPhysicsObject()
+    PhysicsObject* SpawnPhysicsObject(EPhysicsObjectType Type = EPhysicsObjectType_Dynamic,
+        ECollisionChannel CollisionChannel = ECollisionChannel_All)
     {
         T* TypedObject = new T();
+
+        TypedObject->SetWorld(this);
+        TypedObject->SetType(Type);
+        TypedObject->SetCollisionChannel(CollisionChannel);
 
         TypedObject->BeginPlay();
 
         PhysicsObjects.emplace_back(TypedObject);
+
+        switch (Type)
+        {
+        case EPhysicsObjectType_Generic:
+            GenericPhysicsObjects.emplace_back(TypedObject);
+            break;
+        case EPhysicsObjectType_Static:
+            StaticPhysicsObjects.emplace_back(TypedObject);
+            break;
+        case EPhysicsObjectType_Dynamic:
+            DynamicPhysicsObjects.emplace_back(TypedObject);
+            break;
+        case EPhysicsObjectType_Kinematic:
+            KinematicPhysicsObjects.emplace_back(TypedObject);
+            break;
+        default:
+            break;
+        }
+
         return TypedObject;
     }
 
 protected:
     std::vector<PhysicsObject*> PhysicsObjects{};
+
+public:
+    Camera MainCamera{};
+
+protected:
+    NO_DISCARD RawImage RenderScene(const Camera& camera) const;
+
+    std::vector<PhysicsObject*> GenericPhysicsObjects{};
+    std::vector<PhysicsObject*> StaticPhysicsObjects{};
+    std::vector<PhysicsObject*> DynamicPhysicsObjects{};
+    std::vector<PhysicsObject*> KinematicPhysicsObjects{};
+    std::vector<PhysicsObject*> AllTypePhysicsObjects{};
 
 private:
     bool bIsTicking = false;

@@ -11,7 +11,7 @@ FUNC_DEF __global__ void Translate_Kernel(Vector* Points, const Vector translati
     if (const size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < points_count)
     {
         Points[i] = Points[i] + translation;
-        printf("Point %llu: (%f, %f, %f)\n", (unsigned long long)i, Points[i].x, Points[i].y, Points[i].z);
+        // printf("Point %llu: (%f, %f, %f)\n", (unsigned long long)i, Points[i].x, Points[i].y, Points[i].z);
     }
 }
 
@@ -20,7 +20,7 @@ FUNC_DEF __global__ void Rotate_Kernel(Vector* Points, const Quaternion Rotation
     const size_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= points_count) return;
 
-    // Translate to origin
+    // Translate to center
     Vector v = Points[i] - Center;
 
     // Normalize quaternion on device
@@ -28,32 +28,30 @@ FUNC_DEF __global__ void Rotate_Kernel(Vector* Points, const Quaternion Rotation
     float mag = sqrtf(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
     if (mag > 0.0f) {
         q.w /= mag; q.x /= mag; q.y /= mag; q.z /= mag;
+    } else {
+        q.w = 1.0f; q.x = q.y = q.z = 0.0f;
     }
 
-    // u = q.xyz
-    Vector u; u.x = q.x; u.y = q.y; u.z = q.z;
+    // q * (0, v)
+    Quaternion vq{ 0.0f, v.x, v.y, v.z };
+    Quaternion tmp;
+    tmp.w = q.w * vq.w - q.x * vq.x - q.y * vq.y - q.z * vq.z;
+    tmp.x = q.w * vq.x + q.x * vq.w + q.y * vq.z - q.z * vq.y;
+    tmp.y = q.w * vq.y - q.x * vq.z + q.y * vq.w + q.z * vq.x;
+    tmp.z = q.w * vq.z + q.x * vq.y - q.y * vq.x + q.z * vq.w;
 
-    // t = 2 * cross(u, v)
-    Vector t;
-    t.x = 2.0f * (u.y * v.z - u.z * v.y);
-    t.y = 2.0f * (u.z * v.x - u.x * v.z);
-    t.z = 2.0f * (u.x * v.y - u.y * v.x);
+    // (q * vq) * q_conjugate
+    Quaternion qconj{ q.w, -q.x, -q.y, -q.z };
+    Quaternion res;
+    res.w = tmp.w * qconj.w - tmp.x * qconj.x - tmp.y * qconj.y - tmp.z * qconj.z;
+    res.x = tmp.w * qconj.x + tmp.x * qconj.w + tmp.y * qconj.z - tmp.z * qconj.y;
+    res.y = tmp.w * qconj.y - tmp.x * qconj.z + tmp.y * qconj.w + tmp.z * qconj.x;
+    res.z = tmp.w * qconj.z + tmp.x * qconj.y - tmp.y * qconj.x + tmp.z * qconj.w;
 
-    // v' = v + q.w * t + cross(u, t)
-    Vector cross_ut;
-    cross_ut.x = u.y * t.z - u.z * t.y;
-    cross_ut.y = u.z * t.x - u.x * t.z;
-    cross_ut.z = u.x * t.y - u.y * t.x;
-
-    Vector out;
-    out.x = v.x + q.w * t.x + cross_ut.x;
-    out.y = v.y + q.w * t.y + cross_ut.y;
-    out.z = v.z + q.w * t.z + cross_ut.z;
-
-    // Translate back
-    Points[i] = out + Center;
-
-    printf("Point %llu: (%f, %f, %f)\n", (unsigned long long)i, Points[i].x, Points[i].y, Points[i].z);
+    // rotated vector + add center back
+    Points[i].x = res.x + Center.x;
+    Points[i].y = res.y + Center.y;
+    Points[i].z = res.z + Center.z;
 }
 
 FUNC_DEF __global__ void TransRot_Kernel(Vector* Points, const Vector translation, const Quaternion Rotation, const Vector Center, const size_t points_count)
@@ -61,55 +59,55 @@ FUNC_DEF __global__ void TransRot_Kernel(Vector* Points, const Vector translatio
     const size_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= points_count) return;
 
-    // Translate to origin
-    Vector v = Points[i] - Center;
+    // Translate to center
+    const Vector v = Points[i] - Center;
 
     // Normalize quaternion on device
     Quaternion q = Rotation;
     float mag = sqrtf(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
     if (mag > 0.0f) {
         q.w /= mag; q.x /= mag; q.y /= mag; q.z /= mag;
+    } else {
+        q.w = 1.0f; q.x = q.y = q.z = 0.0f;
     }
 
-    // u = q.xyz
-    Vector u; u.x = q.x; u.y = q.y; u.z = q.z;
+    // q * (0, v)
+    Quaternion vq{ 0.0f, v.x, v.y, v.z };
+    Quaternion tmp;
+    tmp.w = q.w * vq.w - q.x * vq.x - q.y * vq.y - q.z * vq.z;
+    tmp.x = q.w * vq.x + q.x * vq.w + q.y * vq.z - q.z * vq.y;
+    tmp.y = q.w * vq.y - q.x * vq.z + q.y * vq.w + q.z * vq.x;
+    tmp.z = q.w * vq.z + q.x * vq.y - q.y * vq.x + q.z * vq.w;
 
-    // t = 2 * cross(u, v)
-    Vector t;
-    t.x = 2.0f * (u.y * v.z - u.z * v.y);
-    t.y = 2.0f * (u.z * v.x - u.x * v.z);
-    t.z = 2.0f * (u.x * v.y - u.y * v.x);
+    // (q * vq) * q_conjugate
+    Quaternion qconj{ q.w, -q.x, -q.y, -q.z };
+    Quaternion res;
+    res.w = tmp.w * qconj.w - tmp.x * qconj.x - tmp.y * qconj.y - tmp.z * qconj.z;
+    res.x = tmp.w * qconj.x + tmp.x * qconj.w + tmp.y * qconj.z - tmp.z * qconj.y;
+    res.y = tmp.w * qconj.y - tmp.x * qconj.z + tmp.y * qconj.w + tmp.z * qconj.x;
+    res.z = tmp.w * qconj.z + tmp.x * qconj.y - tmp.y * qconj.x + tmp.z * qconj.w;
 
-    // v' = v + q.w * t + cross(u, t)
-    Vector cross_ut;
-    cross_ut.x = u.y * t.z - u.z * t.y;
-    cross_ut.y = u.z * t.x - u.x * t.z;
-    cross_ut.z = u.x * t.y - u.y * t.x;
-
-    Vector out;
-    out.x = v.x + q.w * t.x + cross_ut.x;
-    out.y = v.y + q.w * t.y + cross_ut.y;
-    out.z = v.z + q.w * t.z + cross_ut.z;
-
-    // Translate back
-    Points[i] = out + Center;
+    // rotated vector + add center back
+    Points[i].x = res.x + Center.x;
+    Points[i].y = res.y + Center.y;
+    Points[i].z = res.z + Center.z;
 
     // Apply translation
     Points[i] = Points[i] + translation;
 
-    printf("Point %llu: (%f, %f, %f)\n", (unsigned long long)i, Points[i].x, Points[i].y, Points[i].z);
+    // printf("Point %llu: (%f, %f, %f)\n", (unsigned long long)i, Points[i].x, Points[i].y, Points[i].z);
 }
 
 PhysicsObject::PhysicsObject()
 {
-    mIdentifier = GetNextIdentifier();
+    mIdentifier = (long long)GetNextIdentifier();
     Points = nullptr;
     PointsCount = 0;
 }
 
 PhysicsObject::PhysicsObject(const Vector* points, const size_t points_count)
 {
-    mIdentifier = GetNextIdentifier();
+    mIdentifier = (long long)GetNextIdentifier();
     Points = nullptr;
     PointsCount = 0;
     SetPoints(points, points_count);
@@ -165,56 +163,64 @@ void PhysicsObject::Translate(const Vector& translation)
 
 void PhysicsObject::Rotate(const Vector& rotation)
 {
-    const size_t threadsPerBlock = (PointsCount > 128) ? 128 : PointsCount;
-    const size_t blocks = (PointsCount + threadsPerBlock - 1) / threadsPerBlock;
+    const size_t count = PointsCount; // assume this member exists
+    if (count == 0) return;
 
-    const Quaternion rot = Quaternion::fromEuler(rotation);
+    // Compute centroid on host from stored host copy or from GetPoints()
+    // Use GetPoints() which returns host-side std::vector<Vector>
+    std::vector<Vector> hostPoints = GetPoints();
+    Vector centroid{0.0f, 0.0f, 0.0f};
+    for (const auto &p : hostPoints) {
+        centroid.x += p.x; centroid.y += p.y; centroid.z += p.z;
+    }
+    centroid.x /= float(hostPoints.size());
+    centroid.y /= float(hostPoints.size());
+    centroid.z /= float(hostPoints.size());
 
-    Rotate_Kernel<<<blocks, threadsPerBlock>>>(Points, rot, Position, PointsCount);
+    // Create rotation quaternion from Euler angles
+    const Quaternion rotationQuat = Quaternion::fromEuler(rotation);
 
-    Rotation += rot;
-    Rotation.normalize();
+    // Copy centroid to device kernel parameter (passed by value here)
+    // Launch kernel using the device-side points buffer (assume d_Points is device pointer)
+    // Choose thread/block sizing
+    const int threads = 256;
+    const int blocks = int((count + threads - 1) / threads);
 
-#if DEBUG
+    // If using a device-stored quaternion, pass rotationQuat directly.
+    Rotate_Kernel<<<blocks, threads>>>(Points, rotationQuat, centroid, count);
 
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) std::cerr << "Kernel launch error: " << cudaGetErrorString(err) << std::endl;
-
-    err = cudaDeviceSynchronize();
-    if (err != cudaSuccess) std::cerr << "Kernel execution/sync error: " << cudaGetErrorString(err) << std::endl;
-
-#endif
+    // If PhysicsObject caches a host copy, update it (optional): copy device -> host
+    // cudaMemcpy(hostPoints.data(), d_Points, count * sizeof(Vector), cudaMemcpyDeviceToHost);
+    // Update any stored host-side structures as needed.
 }
 
-void PhysicsObject::TranslateRotate(const Vector& translation, const Vector& rotation)
+void PhysicsObject::TranslateRotate(const Vector& translation, const Vector& rotation) const
 {
-    const size_t threadsPerBlock = (PointsCount > 128) ? 128 : PointsCount;
-    const size_t blocks = (PointsCount + threadsPerBlock - 1) / threadsPerBlock;
+    const size_t count = PointsCount; // assume this member exists
+    if (count == 0) return;
 
-    const Quaternion rot = Quaternion::fromEuler(rotation);
+    // Compute centroid on host from stored host copy or from GetPoints()
+    // Use GetPoints() which returns host-side std::vector<Vector>
+    std::vector<Vector> hostPoints = GetPoints();
+    Vector centroid{0.0f, 0.0f, 0.0f};
+    for (const auto &p : hostPoints) {
+        centroid.x += p.x; centroid.y += p.y; centroid.z += p.z;
+    }
+    centroid.x /= float(hostPoints.size());
+    centroid.y /= float(hostPoints.size());
+    centroid.z /= float(hostPoints.size());
 
-    TransRot_Kernel<<<blocks, threadsPerBlock>>>(Points, translation, rot, Position, PointsCount);
+    // Create rotation quaternion from Euler angles
+    const Quaternion rotationQuat = Quaternion::fromEuler(rotation);
 
-    // Update rotation
-    Rotation += rot;
-    Rotation.normalize();
+    // Copy centroid to device kernel parameter (passed by value here)
+    // Launch kernel using the device-side points buffer (assume d_Points is device pointer)
+    // Choose thread/block sizing
+    constexpr int threads = 256;
+    const int blocks = int((count + threads - 1) / threads);
 
-    // Update position
-    Position += translation;
-
-    std::cout << "Rotation: " << Rotation.toString() << std::endl;
-    std::cout << "Position: " << Position.toString() << std::endl;
-    std::cout << "Rot amount: " << rot.toString() << std::endl;
-
-#if DEBUG
-
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) std::cerr << "Kernel launch error: " << cudaGetErrorString(err) << std::endl;
-
-    err = cudaDeviceSynchronize();
-    if (err != cudaSuccess) std::cerr << "Kernel execution/sync error: " << cudaGetErrorString(err) << std::endl;
-
-#endif
+    // If using a device-stored quaternion, pass rotationQuat directly.
+    TransRot_Kernel<<<blocks, threads>>>(Points, translation, rotationQuat, centroid, count);
 }
 
 
@@ -244,18 +250,174 @@ void PhysicsObject::SetPoints(const Vector* points, const size_t points_count)
     }
 }
 
-void PhysicsObject::Tick(const float deltaTime)
+void PhysicsObject::SetTriangles(const Triangle* triangles, size_t triangle_count)
 {
-    static Vector translation_amount {0.1f, -1.0f, 0.5f};
-    static Vector rotation_amount { PI/4.0f, 0.0f, 0.0f }; // Rotate 45 degrees around X axis per second
+    TrianglesCount = triangle_count;
+    if (Triangles != nullptr)
+    {
+        cudaFree(Triangles);
+        Triangles = nullptr;
+    }
 
-    std::cout << "Ticking Physics Object " << GetIdentifier() << " " << deltaTime << " seconds." << std::endl;
+    cudaMalloc(&Triangles, triangle_count * sizeof(Triangle));
+    cudaMemcpy(Triangles, triangles, triangle_count * sizeof(Triangle), cudaMemcpyHostToDevice);
+}
+
+void PhysicsObject::CreateTriangles(const Vector* points, const size_t points_count, const size_t* triangle_indices,
+                                    const size_t triangle_count)
+{
+    SetPoints(points, points_count);
+    CreateTrianglesFromPoints(triangle_indices, triangle_count);
+}
+
+void PhysicsObject::CreateTrianglesFromPoints(const size_t* triangle_indices, size_t triangle_count)
+{
+    if (triangle_count > PointsCount)
+    {
+        printf("Error: triangle_count (%llu) exceeds PointsCount (%llu)\n",
+            (unsigned long long)triangle_count, (unsigned long long)PointsCount);
+        return; // Not enough points to create triangles
+    }
+
+    std::vector<Triangle> triangles_host(triangle_count);
+
+    for (size_t i = 0; i < triangle_count; i += 3)
+    {
+        const size_t idx1 = triangle_indices[i];
+        const size_t idx2 = triangle_indices[(i + 1)];
+        const size_t idx3 = triangle_indices[(i + 2)];
+        if (idx1 >= PointsCount || idx2 >= PointsCount || idx3 >= PointsCount)
+        {
+            printf("Error: Triangle index out of bounds (idx1: %llu, idx2: %llu, idx3: %llu, PointsCount: %llu)\n",
+                (unsigned long long)idx1, (unsigned long long)idx2, (unsigned long long)idx3, (unsigned long long)PointsCount);
+            continue; // Skip invalid triangle
+        }
+        triangles_host[i / 3] = Triangle{ idx1, idx2, idx3 };
+    }
+
+    const auto tris = triangles_host.data();
+
+    if (Triangles != nullptr)
+    {
+        cudaFree(Triangles);
+        Triangles = nullptr;
+        TrianglesCount = 0;
+    }
+
+    cudaMalloc(&Triangles, triangle_count * sizeof(Triangle));
+    cudaMemcpy(Triangles, tris, triangle_count * sizeof(Triangle), cudaMemcpyHostToDevice);
+    TrianglesCount = triangle_count;
+}
+
+std::vector<Vector> PhysicsObject::GetPoints() const
+{
+    cudaDeviceSynchronize();
+    auto points_host = std::vector<Vector>(PointsCount);
+    cudaMemcpy(points_host.data(), Points, PointsCount * sizeof(Vector), cudaMemcpyDeviceToHost);
+    return points_host;
+}
+
+size_t PhysicsObject::GetPointsCount() const
+{
+    return PointsCount;
+}
+
+std::vector<Triangle> PhysicsObject::GetTriangles() const
+{
+    cudaDeviceSynchronize();
+    auto triangles = std::vector<Triangle>(TrianglesCount);
+    cudaMemcpy(triangles.data(), Triangles, TrianglesCount * sizeof(Triangle), cudaMemcpyDeviceToHost);
+    return triangles;
+}
+
+size_t PhysicsObject::GetTrianglesCount() const
+{
+    return TrianglesCount;
+}
+
+void PhysicsObject::SetPosition(const Vector& position)
+{
+    Translate(position - Position);
+    cudaDeviceSynchronize();
+}
+
+EPhysicsObjectType PhysicsObject::GetType() const
+{
+    if (mType & EPhysicsObjectType_Static)
+    {
+        return EPhysicsObjectType_Static;
+    }
+    if (mType & EPhysicsObjectType_Kinematic)
+    {
+        return EPhysicsObjectType_Kinematic;
+    }
+    if (mType & EPhysicsObjectType_All)
+    {
+        return EPhysicsObjectType_All;
+    }
+    if (mType & EPhysicsObjectType_Dynamic)
+    {
+        return EPhysicsObjectType_Dynamic;
+    }
+    return EPhysicsObjectType_Generic;
+}
+
+ECollisionChannel PhysicsObject::GetCollisionChannel() const
+{
+    if (mCollisionChannel & ECollisionChannel_World)
+    {
+        return ECollisionChannel_World;
+    }
+    if (mCollisionChannel & ECollisionChannel_Dynamic)
+    {
+        return ECollisionChannel_Dynamic;
+    }
+    if (mCollisionChannel & ECollisionChannel_All)
+    {
+        return ECollisionChannel_All;
+    }
+    if (mCollisionChannel & ECollisionChannel_PhysicsBody)
+    {
+        return ECollisionChannel_PhysicsBody;
+    }
+    return ECollisionChannel_None;
+}
+
+void PhysicsObject::SetType(const EPhysicsObjectType type)
+{
+    mType = type;
+}
+
+void PhysicsObject::SetCollisionChannel(const ECollisionChannel channel)
+{
+    mCollisionChannel = channel;
+}
+
+void PhysicsObject::Tick(const float deltaTime, PhysicsObject** allObjects, const int objectCount)
+{
     if (PointsCount == 0 || Points == nullptr) return;
 
-    TranslateRotate(translation_amount * deltaTime, rotation_amount * deltaTime);
+    if (bUsePhysics && PhysicsCallback)
+    {
+        PhysicsCallback(deltaTime, this, allObjects, objectCount);
+    }
 
 }
-std::vector<CollisionResult> PhysicsObject::CollisionCheck(PhysicsObject* environment)
+std::vector<CollisionResult> PhysicsObject::CollisionCheck(PhysicsObject** allObjects, const int objectCount) const
 {
-    return {}; // Placeholder implementation
+    switch (mCollisionChannel)
+    {
+        case ECollisionChannel_World:
+        case ECollisionChannel_PhysicsBody:
+        case ECollisionChannel_Dynamic:
+        case ECollisionChannel_All:
+            {
+                std::vector<CollisionResult> results;
+                // Placeholder for collision detection logic
+                return results;
+            }
+        case ECollisionChannel_None:
+        default:
+            return {};
+    }
 }

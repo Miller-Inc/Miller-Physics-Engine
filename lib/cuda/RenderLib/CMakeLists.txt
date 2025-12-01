@@ -19,7 +19,16 @@ add_library(RenderLib SHARED
         include/Engine/Constructor.h
         include/Engine/EngineClock.h
         include/Engine/Quaternion.cuh
-        src/Engine/Quaternion.cu)
+        src/Engine/Quaternion.cu
+        include/Engine/Triangle.cuh
+        include/Engine/CudaMacros.cuh
+        include/Engine/Rendering/Camera.cuh
+        src/Engine/Rendering/Camera.cu
+        include/Engine/Rendering/Color.cuh
+        include/Engine/Rendering/AABB.cuh
+        include/Engine/Rendering/BVHNode.cuh
+        include/Engine/Rendering/BVHBuilder.h
+        include/Engine/Rendering/BVHTraverse.cuh)
 
 target_include_directories(RenderLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

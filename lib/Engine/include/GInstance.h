@@ -24,7 +24,7 @@
 class GInstance;
 
 /// Callback typedefs for window drawing, initialization, ticking, and client connections
-typedef std::function<void()> DrawWindowCallback;
+typedef std::function<void(float)> DrawWindowCallback;
 typedef std::function<void(GInstance*)> InitWindowCallback;
 typedef std::function<void(float)> TickCallback;
 
@@ -51,7 +51,7 @@ public:
     void Tick(float deltaTime);
 
     /// Render the game instance, called every frame
-    void Render(); // Render the game instance
+    void Render(float deltaTime); // Render the game instance
 
     /// Texture Management
 
@@ -83,6 +83,8 @@ public:
 
     /// Exits the main loop and shuts down the game instance
     void StopMainLoop() { RunLoop = false; }
+
+    [[nodiscard]] GPU::VulkanSetup *GetVulkanSetup() const { return mSetup; }
 
 protected:
     /// Pre-window initialization (called before any windows are created) (Called once)

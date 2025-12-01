@@ -4,7 +4,7 @@
 
 #pragma once
 #include "../defns.h"
-#include <cuda_runtime.h>
+#include "CudaMacros.cuh"
 
 #include "Vector.cuh"
 

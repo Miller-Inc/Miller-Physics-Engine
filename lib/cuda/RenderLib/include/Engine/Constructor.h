@@ -4,11 +4,14 @@
 
 #pragma once
 
+/// Forward declaration of PhysicsObject
+class PhysicsObject;
+
 template<typename T>
 struct Constructor
 {
     using BeginPlayFncType = void(T::*)();
-    using TickFncType = void(T::*)(float);
+    using TickFncType = void(T::*)(float, PhysicsObject**, int);
 
     BeginPlayFncType BeginPlayFunc; // Function pointer to the BeginPlay method
     TickFncType TickFunc; // Function pointer to the Tick method

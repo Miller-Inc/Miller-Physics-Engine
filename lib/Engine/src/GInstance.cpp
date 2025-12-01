@@ -75,7 +75,7 @@ void GInstance::Tick(const float deltaTime)
     }
 }
 
-void GInstance::Render()
+void GInstance::Render(float deltaTime)
 {
     // Rendering logic here
     for (const auto& window : mWindows | std::views::values)
@@ -84,7 +84,7 @@ void GInstance::Render()
         {
             if (window.DrawCallback)
             {
-                window.DrawCallback();
+                window.DrawCallback(deltaTime);
             }
         }
     }
@@ -261,6 +261,7 @@ static uint32_t                 g_QueueFamily = (uint32_t)-1;
 static VkQueue                  g_Queue = VK_NULL_HANDLE;
 static VkPipelineCache          g_PipelineCache = VK_NULL_HANDLE;
 static VkDescriptorPool         g_DescriptorPool = VK_NULL_HANDLE;
+static VkCommandPool g_CommandPool = VK_NULL_HANDLE;
 
 static ImGui_ImplVulkanH_Window g_MainWindowData;
 static uint32_t                 g_MinImageCount = 2;
@@ -459,6 +460,12 @@ static void CleanupVulkan()
     f_vkDestroyDebugReportCallbackEXT(g_Instance, g_DebugReport, g_Allocator);
 #endif // APP_USE_VULKAN_DEBUG_REPORT
 
+    if (g_CommandPool != VK_NULL_HANDLE)
+    {
+        vkDestroyCommandPool(g_Device, g_CommandPool, g_Allocator);
+        g_CommandPool = VK_NULL_HANDLE;
+    }
+
     vkDestroyDevice(g_Device, g_Allocator);
     vkDestroyInstance(g_Instance, g_Allocator);
 }
@@ -537,7 +544,14 @@ static void FramePresent(ImGui_ImplVulkanH_Window* wd)
 {
     if (g_SwapChainRebuild)
         return;
-    VkSemaphore render_complete_semaphore = wd->FrameSemaphores[wd->SemaphoreIndex].RenderCompleteSemaphore;
+
+    // Use the same semaphore slot that was used for vkAcquireNextImageKHR / vkQueueSubmit
+    uint32_t semIndex = wd->SemaphoreIndex;
+    if (semIndex >= wd->SemaphoreCount)
+        semIndex = 0; // defensive fallback
+
+    VkSemaphore render_complete_semaphore = wd->FrameSemaphores[semIndex].RenderCompleteSemaphore;
+
     VkPresentInfoKHR info = {};
     info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     info.waitSemaphoreCount = 1;
@@ -552,7 +566,9 @@ static void FramePresent(ImGui_ImplVulkanH_Window* wd)
         return;
     if (err != VK_SUBOPTIMAL_KHR)
         check_vk_result(err);
-    wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->SemaphoreCount; // Now we can use the next set of semaphores
+
+    // Advance the rotating semaphore index (keeps acquire/submit/present in sync)
+    wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->SemaphoreCount;
 }
 
 /******************************************************************************
@@ -704,6 +720,7 @@ int GInstance::Program()
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     VkCommandPool commandPool;
     vkCreateCommandPool(g_Device, &poolInfo, nullptr, &commandPool);
+    g_CommandPool = commandPool; // track it for cleanup
 
     // Pass g_Queue and commandPool to VulkanSetup
     GPU::VulkanSetup VulkanSetupParams{g_Instance, g_Device, g_PhysicalDevice, g_Queue, commandPool};
@@ -804,7 +821,8 @@ int GInstance::Program()
         }
 #endif
         // Add new windows here...
-        Render();
+        float deltaTime = io.DeltaTime;
+        Render(deltaTime);
 
 
 

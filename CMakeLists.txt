@@ -53,6 +53,8 @@ set(MILLER_RENDER_LIB_SOURCES
         lib/Vulkan/src/VulkanSetup.cpp
         lib/Engine/src/GInstance.cpp
         lib/Engine/src/Windows/WindowBase.cpp
+        lib/Engine/src/Windows/Viewport.cpp
+        lib/Engine/src/Vulkan/VulkanHelpers.cpp
 )
 
 # List of header files for the MillerRenderLib executable
@@ -67,6 +69,8 @@ set(MILLER_RENDER_LIB_HEADERS
     lib/Vulkan/include/VulkanSetup.hpp
     lib/Engine/include/GInstance.h
     lib/Engine/include/Windows/WindowBase.h
+        lib/Engine/include/Windows/Viewport.h
+        lib/Engine/include/Vulkan/VulkanHelpers.h
 )
 
 # create executable
@@ -74,6 +78,8 @@ add_executable(MillerRenderLib ${EXE_FLAGS}
     ${MILLER_RENDER_LIB_SOURCES}
     ${MILLER_RENDER_LIB_HEADERS}
 )
+# Add the application icon resource if it exists
+target_sources(MillerRenderLib PRIVATE ${APP_ICON_RESOURCE})
 
 # include library headers and statically link the CUDA runtime into the exe
 target_include_directories(MillerRenderLib PRIVATE ${CMAKE_SOURCE_DIR}/lib/cuda/RenderLib/include)
@@ -89,25 +95,6 @@ target_include_directories(MillerRenderLib PRIVATE third_party/json/include)
 
 # Define preprocessor definitions for static linking of SDL3 and SDL3_net
 target_compile_definitions(MillerRenderLib PUBLIC SDL_STATIC SDL3_STATIC SDL3_NET_STATIC)
-
-## This condition checks if the current platform is Windows.
-#if(WIN32)
-#    # The commands inside this block will only be executed on Windows.
-#    message(STATUS "Static linking is enabled for Windows.")
-#
-#    # Check if the Visual Studio compiler is being used.
-#    if(MSVC)
-#        target_compile_options(MillerRenderLib PRIVATE /MT)
-#        # Check if the MinGW compiler is being used.
-#    elseif(MINGW)
-#        # Pass the static linking flags for MinGW.
-#        target_link_options(MillerRenderLib PRIVATE
-#                -static
-#                -static-libgcc
-#                -static-libstdc++
-#        )
-#    endif()
-#endif()
 
 # ImGui setup
 set(IMGUI_DIR third_party/imgui)

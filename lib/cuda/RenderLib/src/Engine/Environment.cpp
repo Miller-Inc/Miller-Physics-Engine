@@ -16,16 +16,6 @@ Environment::~Environment()
     Environment::Destroy(); // Clean up resources
 };
 
-void Environment::Init()
-{
-    static bool init = false;
-    if (init)
-        return;
-    init = true;
-    EngineClock.Init(); // Initialize the delta timer
-    EngineClock.Tick();
-}
-
 void Environment::Destroy()
 {
 }

@@ -22,13 +22,13 @@ void WindowBase::Init(const std::string& WindowName, GInstance* Instance)
 {
     Name = WindowName;
     this->mInstance = Instance;
-    Init();
+    WindowBase::Init();
 }
 
 void WindowBase::Init(GInstance* GameInstance)
 {
     mInstance = GameInstance;
-    Init();
+    WindowBase::Init();
 }
 
 void WindowBase::Open()
@@ -36,7 +36,7 @@ void WindowBase::Open()
     isOpen = true;
 }
 
-void WindowBase::Draw()
+void WindowBase::Draw(const float deltaTime)
 {
     // Base draw does nothing
 }
@@ -44,4 +44,9 @@ void WindowBase::Draw()
 void WindowBase::Close()
 {
     isOpen = false;
+}
+
+void WindowBase::Tick(float deltaTime)
+{
+    // Base tick does nothing
 }

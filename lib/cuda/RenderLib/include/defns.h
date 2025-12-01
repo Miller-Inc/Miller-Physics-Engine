@@ -28,14 +28,12 @@ std::cerr << "CUDA error at " << __FILE__ << " line " << __LINE__ << ": " << cud
 #define FUNCTION_SIGNATURE(rettype, name, ...) FUNC_DEF rettype name(__VA_ARGS__)
 #define NO_DISCARD [[nodiscard]]
 
-#define CUDA_CALLABLE_MEMBER __host__ __device__
-
-#define DEBUG true
+#define DEBUG false
 
 #define PI 3.14159265358979323846f
 
-static int64_t GetNextIdentifier()
+static unsigned long long GetNextIdentifier()
 {
-    static int64_t currentId = 0;
+    static unsigned long long currentId = 0;
     return currentId++;
 }
