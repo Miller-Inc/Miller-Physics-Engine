@@ -35,7 +35,7 @@ To get started with the Miller Physics Engine, follow these steps:
 2. Clone the repository:
    ```bash
    # SSH
-   git clone git@github.com:Miller-Inc/Miller-Physics-Engine.git
+   git clone git@github.com:Miller-Inc/Miller-Physics-Engine.git --recurse-submodules
    
     # HTTPS
     git clone https://github.com/Miller-Inc/Miller-Physics-Engine.git
