@@ -11,17 +11,6 @@
 #include "imgui_impl_vulkan.h"
 #include <SDL3/SDL.h>
 
-static VkImage   s_img = VK_NULL_HANDLE;
-static VkDeviceMemory s_imgMem = VK_NULL_HANDLE;
-static VkImageView s_imgView = VK_NULL_HANDLE;
-static ImTextureID s_tex = 0;
-
-// Mouse capture state for viewport input handling
-static bool s_mouseCaptured = false;
-static float s_mouseSensitivity = 0.005f; // radians per pixel (tweak as needed)
-static bool s_prevEscDown = false;
-static float s_moveSpeed = 5.0f; // units per second
-
 Viewport::Viewport()
 {
     Name = "Viewport";
@@ -92,16 +81,16 @@ void Viewport::Init(const std::string& WindowName, GInstance* Instance)
     // Existing code used SetPoints(points, count) so assume SetTriangles(tris, count) exists.
     obj1->SetPoints(cubePoints.data(), (int)cubePoints.size());
     obj1->SetTriangles(cubeTris.data(), (int)cubeTris.size());
-    obj1->SetPosition({-2.0f, 0.0f, 0.0f}); // Move object 2 to the left
+    obj1->SetPosition({0.0f, -5.0f, 0.0f}); // Move object 2 to the left
     obj1->PhysicsCallback = [](const float deltaTime, PhysicsObject* obj, PhysicsObject**, int) {
         // Simple rotation over time
         static float time = 0.0f; time += deltaTime;
-        obj->TranslateRotate({0.0f, deltaTime * sin(time), 0.0f},{0.0f, deltaTime * PI, 0.0f});
+        obj->TranslateRotate({deltaTime * 5 * cos(time), deltaTime * 5 * sin(time), 0.0f},{0.0f, deltaTime * PI, 0.0f});
     };
 
     obj2->SetPoints(cubePoints.data(), (int)cubePoints.size());
     obj2->SetTriangles(cubeTris.data(), (int)cubeTris.size());
-    obj2->SetPosition(Vector(2.0f, 0.0f, 0.0f)); // Move object 2 to the right
+    obj2->SetPosition(Vector(0.0f, 0.0f, 0.0f)); // Move object 2 to the right
     obj2->rotation_amount = { PI/1.5f, -(PI/1.5f) , 0.0f };
     obj2->PhysicsCallback = [](const float deltaTime, PhysicsObject* obj, PhysicsObject**, int) {
         // Simple rotation over time
@@ -127,32 +116,33 @@ void Viewport::Draw(float deltaTime)
     M_LOGGER(Logger::LogCore, Logger::Info, "Drawing Viewport Window");
 
     static bool window = true;
-    ImGui::SetNextWindowSize(ImVec2(1280, 760));
+    ImGui::SetNextWindowSize(ImVec2(1320, 750));
 
-    if (ImGui::Begin("Viewport", &window, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar))
+    if (ImGui::Begin("Viewport", &window, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize))
     {
         // --- Input / capture handling before rendering so camera update affects this frame ---
         ImGuiIO& io = ImGui::GetIO();
+        // float H = ImGui::GetWindowHeight(), W = ImGui::GetWindowWidth();
 
         const bool windowHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows);
         const bool leftClick = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
 
         // Start capture on left click inside the viewport
-        if (!s_mouseCaptured && windowHovered && leftClick) {
-            s_mouseCaptured = true;
+        if (!mMouseCaptured && windowHovered && leftClick) {
+            mMouseCaptured = true;
             // SDL_SetRelativeMouseMode(true);
             // SDL_SetRelativeMouseMode(SDL_TRUE); // capture & hide cursor
             SDL_HideCursor();
             // reset previous escape state
-            s_prevEscDown = false;
+            mPrevEscDown = false;
         }
 
         // If captured, apply rotation from mouse delta
-        if (s_mouseCaptured) {
+        if (mMouseCaptured) {
             // Apply small rotation based on mouse movement
             const ImVec2 md = io.MouseDelta; // delta in pixels
-            const float yaw = md.x * s_mouseSensitivity;
-            const float pitch = md.y * s_mouseSensitivity;
+            const float yaw = md.x * mMouseSensitivity;
+            const float pitch = md.y * mMouseSensitivity;
 
             // Rotate the environment's main camera.
             // Assumes Environment exposes MainCamera publicly; adjust if accessor exists.
@@ -161,17 +151,17 @@ void Viewport::Draw(float deltaTime)
             // Release capture on Escape key press
             const bool escDown = ImGui::IsKeyPressed(ImGuiKey_Escape);
 
-            if (escDown && !s_prevEscDown) {
+            if (escDown && !mPrevEscDown) {
                 // Escape pressed -> release capture
-                s_mouseCaptured = false;
+                mMouseCaptured = false;
                 // SDL_SetRelativeMouseMode(false);
                 SDL_ShowCursor();
             }
-            s_prevEscDown = escDown;
+            mPrevEscDown = escDown;
 
             // Also release capture if viewport loses focus/hover
             if (!windowHovered) {
-                s_mouseCaptured = false;
+                mMouseCaptured = false;
                 // SDL_SetRelativeMouseMode(false);
                 SDL_ShowCursor();
             }
@@ -180,7 +170,7 @@ void Viewport::Draw(float deltaTime)
 
             // movement: use environment delta time
             const float dt = deltaTime;
-            const float step = s_moveSpeed * dt;
+            const float step = mMoveSpeed * dt;
 
             // accumulate movement in world (camera-relative) axes
             Vector mv{ 0.0f, 0.0f, 0.0f };
@@ -229,9 +219,10 @@ void Viewport::Draw(float deltaTime)
 
                 // Use file-scope statics (persist across frames) to avoid re-creating/destroying each frame
                 const VkDescriptorSet tex = UploadRawImageToVulkan(device, physicalDevice, graphicsQueue, commandPool,
-                                                                 img, &s_img, &s_imgMem, &s_imgView, &s_tex);
+                                                                 img, &mImg, &mImgMem, &mImgView, &mTex);
                 if (tex)
                 {
+                    ImGui::SetCursorPos(ImVec2(0, 0));
                     ImGui::Image((ImTextureID)tex, ImVec2((float)img.Width, (float)img.Height));
                     if (img.ReleaseCallback) img.ReleaseCallback(const_cast<RawImage&>(img));
                 }
@@ -256,8 +247,8 @@ void Viewport::Draw(float deltaTime)
 void Viewport::Close()
 {
     // Ensure mouse capture is released if still active
-    if (s_mouseCaptured) {
-        s_mouseCaptured = false;
+    if (mMouseCaptured) {
+        mMouseCaptured = false;
         // SDL_SetRelativeMouseMode(false);
         SDL_ShowCursor();
     }
@@ -272,23 +263,23 @@ void Viewport::Close()
             vkDeviceWaitIdle(device);
 
             // Remove ImGui descriptor/registration first
-            if (s_tex) {
+            if (mTex) {
                 // ImGui_ImplVulkan_RemoveTexture(s_tex);
-                s_tex = 0;
+                mTex = 0;
             }
 
             // Destroy image view, image, and free memory (in correct order)
-            if (s_imgView != VK_NULL_HANDLE) {
-                vkDestroyImageView(device, s_imgView, nullptr);
-                s_imgView = VK_NULL_HANDLE;
+            if (mImgView != VK_NULL_HANDLE) {
+                vkDestroyImageView(device, mImgView, nullptr);
+                mImgView = VK_NULL_HANDLE;
             }
-            if (s_img != VK_NULL_HANDLE) {
-                vkDestroyImage(device, s_img, nullptr);
-                s_img = VK_NULL_HANDLE;
+            if (mImg != VK_NULL_HANDLE) {
+                vkDestroyImage(device, mImg, nullptr);
+                mImg = VK_NULL_HANDLE;
             }
-            if (s_imgMem != VK_NULL_HANDLE) {
-                vkFreeMemory(device, s_imgMem, nullptr);
-                s_imgMem = VK_NULL_HANDLE;
+            if (mImgMem != VK_NULL_HANDLE) {
+                vkFreeMemory(device, mImgMem, nullptr);
+                mImgMem = VK_NULL_HANDLE;
             }
 
             // Destroy helper-owned resources such as the static sampler

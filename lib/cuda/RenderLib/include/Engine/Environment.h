@@ -19,7 +19,7 @@ public:
     virtual void Init();
     virtual void Destroy();
     virtual void TickAll(float deltaTime);
-    virtual RawImage RenderScene();
+    NO_DISCARD RawImage RenderScene(int width = -1, int height = -1) const;
 
     double GetDeltaTime() { return EngineClock.Tick(); }
 
@@ -68,7 +68,7 @@ public:
     Camera MainCamera{};
 
 protected:
-    NO_DISCARD RawImage RenderScene(const Camera& camera) const;
+    NO_DISCARD RawImage RenderScene(const Camera& camera, int width = -1, int height = -1) const;
 
     std::vector<PhysicsObject*> GenericPhysicsObjects{};
     std::vector<PhysicsObject*> StaticPhysicsObjects{};

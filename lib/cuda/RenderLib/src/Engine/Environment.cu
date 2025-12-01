@@ -89,15 +89,29 @@ void Environment::TickAll(const float deltaTime)
 
 }
 
-RawImage Environment::RenderScene()
+RawImage Environment::RenderScene(const int width, const int height) const
 {
-    return RenderScene(MainCamera);
+    return RenderScene(MainCamera, width, height);
 }
 
-RawImage Environment::RenderScene(const Camera& camera) const
+RawImage Environment::RenderScene(const Camera& camera, int width, int height) const
 {
-    const int H = 600;
-    const int W = (int)(camera.aspectRatio * float(H));
+    if (width <= 0 && height > 0)
+    {
+        width = static_cast<int>(camera.aspectRatio * float(height));
+    }
+    else if (height <= 0 && width > 0)
+    {
+        height = static_cast<int>(float(width) / camera.aspectRatio);
+    }
+    else if (width <= 0 && height <= 0)
+    {
+        // Default resolution
+        height = 740;
+        width = static_cast<int>(camera.aspectRatio * float(height));
+    }
+    const int H = height;
+    const int W = width;
 
     std::vector<Vector> points;
     std::vector<Triangle> tris;
