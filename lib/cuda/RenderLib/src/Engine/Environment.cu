@@ -24,7 +24,7 @@ __global__ void renderKernel(const BVHNode* d_nodes, const int nodeCount,
     const unsigned int py = blockIdx.y * blockDim.y + threadIdx.y;
     if (px >= width || py >= height) return;
 
-    // NDC -> screen
+    // Normalized Device Coordinates -> View Space
     const float ndcX = ( (px + 0.5f) / float(width) ) * 2.0f - 1.0f;
     const float ndcY = ( (py + 0.5f) / float(height) ) * 2.0f - 1.0f;
     const float aspect = float(width) / float(height);
@@ -35,12 +35,7 @@ __global__ void renderKernel(const BVHNode* d_nodes, const int nodeCount,
     dir.y = -ndcY * tanFov;
     dir.z = -1.0f;
 
-    // normalize dir (manual)
-    const float len = sqrtf(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z);
-    dir.x /= len; dir.y /= len; dir.z /= len;
-
-    Vector unrot = dir; // dir computed and normalized
-    dir = quat_rotate_vector(camOrient, unrot);
+    dir = Quaternion::RotateVectorByQuaternion(dir.normalize(), camOrient);
 
     int hit = traverseBVH(d_nodes, nodeCount, d_tris, d_points, camOrigin, dir);
 

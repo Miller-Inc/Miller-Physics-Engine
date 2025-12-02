@@ -26,7 +26,7 @@ public:
 
 private:
 
-    static int buildRecursive(const std::vector<Triangle>& tris, std::vector<int>& indices, int start, int end,
+    static int buildRecursive(const std::vector<Triangle>& tris, std::vector<int>& indices, const int start, const int end,
                                   std::vector<BVHNode>& nodes, std::vector<Triangle>& outTris, const Vector* points)
     {
         const int nodeIndex = (int)nodes.size();
@@ -50,7 +50,7 @@ private:
         }
 
         // choose split axis by largest extent
-        Vector extent = { centroidBounds.max.x - centroidBounds.min.x, centroidBounds.max.y - centroidBounds.min.y, centroidBounds.max.z - centroidBounds.min.z };
+        const Vector extent = { centroidBounds.max.x - centroidBounds.min.x, centroidBounds.max.y - centroidBounds.min.y, centroidBounds.max.z - centroidBounds.min.z };
         int axis = 0;
         if (extent.y > extent.x) axis = 1;
         if (extent.z > (axis==1 ? extent.y : extent.x)) axis = 2;

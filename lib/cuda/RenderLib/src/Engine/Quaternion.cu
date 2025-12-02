@@ -14,6 +14,14 @@ CUDA_CALLABLE_MEMBER Quaternion::Quaternion(const float w, const float x, const 
     : w(w), x(x), y(y), z(z)
 {}
 
+Quaternion::Quaternion(const Vector& vec) noexcept
+{
+    w = 0.0f;
+    x = vec.x;
+    y = vec.y;
+    z = vec.z;
+}
+
 CUDA_CALLABLE_MEMBER Quaternion& Quaternion::normalize()
 {
     const float mag = magnitude();
@@ -44,7 +52,7 @@ CUDA_CALLABLE_MEMBER float Quaternion::dot(const Quaternion& other) const
     return w * other.w + x * other.x + y * other.y + z * other.z;
 }
 
-CUDA_CALLABLE_MEMBER Quaternion Quaternion::cross(const Quaternion& other) const
+CUDA_CALLABLE_MEMBER Quaternion Quaternion::hamilton_product(const Quaternion& other) const
 {
     return Quaternion{
         w * other.w - x * other.x - y * other.y - z * other.z,
@@ -59,7 +67,7 @@ CUDA_CALLABLE_MEMBER float Quaternion::dot(const Vector& other) const
     return w * 0.0f + x * other.x + y * other.y + z * other.z;
 }
 
-CUDA_CALLABLE_MEMBER Quaternion Quaternion::cross(const Vector& other) const
+CUDA_CALLABLE_MEMBER Quaternion Quaternion::hamilton_product(const Vector& other) const
 {
     return Quaternion{
         - (x * other.x + y * other.y + z * other.z),
@@ -147,12 +155,12 @@ CUDA_CALLABLE_MEMBER Quaternion& Quaternion::operator/=(float scalar)
 
 CUDA_CALLABLE_MEMBER Quaternion Quaternion::operator*(const Quaternion& other) const
 {
-    return cross(other);
+    return hamilton_product(other);
 }
 
 CUDA_CALLABLE_MEMBER Quaternion& Quaternion::operator*=(const Quaternion& other)
 {
-    *this = cross(other);
+    *this = hamilton_product(other);
     return *this;
 }
 
@@ -408,14 +416,18 @@ std::string Quaternion::toString() const
     return "(" + std::to_string(w) + ", " + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z) + ")";
 }
 
+Quaternion Quaternion::to_normalized() const
+{
+    return Quaternion{w, x, y, z}.normalize();
+}
+
 CUDA_CALLABLE_MEMBER Vector Quaternion::RotateVectorByQuaternion(const Vector& vec, Quaternion quat)
 {
     // Ensure the rotation quaternion is normalized
     quat.normalize(); // modifies local copy
 
     // Rotate: v' = q * (0, v) * q^{-1}
-    const Quaternion vecQ = PureFromVector(vec);
-    const Quaternion res  = quat * vecQ * quat.conjugate();
+    const Quaternion res  = quat * PureFromVector(vec) * quat.conjugate();
 
     // Don't normalize 'res' — return its vector (pure) part directly
     return res.PureAsVector();

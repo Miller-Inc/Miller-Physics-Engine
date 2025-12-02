@@ -18,6 +18,9 @@ typedef struct Quaternion
     /// Component-wise constructor
     CUDA_CALLABLE_MEMBER Quaternion(float w, float x, float y, float z) noexcept;
 
+    /// Create a vector with w=0 and (x,y,z) from the given vector
+    CUDA_CALLABLE_MEMBER explicit Quaternion(const Vector& vec) noexcept;
+
     /// Normalize
     CUDA_CALLABLE_MEMBER Quaternion& normalize();
 
@@ -34,13 +37,13 @@ typedef struct Quaternion
     CUDA_CALLABLE_MEMBER float dot(const Quaternion& other) const;
 
     /// Cross product
-    CUDA_CALLABLE_MEMBER Quaternion cross(const Quaternion& other) const;
+    CUDA_CALLABLE_MEMBER Quaternion hamilton_product(const Quaternion& other) const;
 
     /// Dot product with a vector treated as a quaternion with w=0
     CUDA_CALLABLE_MEMBER float dot(const Vector& other) const;
 
     /// Cross product with a vector treated as a quaternion with w=0
-    CUDA_CALLABLE_MEMBER Quaternion cross(const Vector& other) const;
+    CUDA_CALLABLE_MEMBER Quaternion hamilton_product(const Vector& other) const;
 
     /// Addition
     CUDA_CALLABLE_MEMBER Quaternion operator+(const Quaternion& other) const;
@@ -128,7 +131,9 @@ typedef struct Quaternion
 
     CUDA_CALLABLE_MEMBER Vector im() const;
 
-    CUDA_CALLABLE_MEMBER std::string toString() const;
+    NO_DISCARD std::string toString() const;
+
+    CUDA_CALLABLE_MEMBER Quaternion to_normalized() const;
 
 
 } Quaternion;
