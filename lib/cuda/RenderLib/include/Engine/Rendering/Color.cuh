@@ -6,10 +6,11 @@
 #include "Engine/CudaMacros.cuh"
 #include <cstdint>
 #include <algorithm>
+#include <cmath>
 
 typedef struct Color
 {
-    float r, g, b, a;
+    float r{}, g{}, b{}, a{};
 
     CUDA_CALLABLE_MEMBER Color() noexcept : r(0), g(0), b(0), a(1) {}
     CUDA_CALLABLE_MEMBER Color(float rr, float gg, float bb, float aa = 1.0f) noexcept : r(rr), g(gg), b(bb), a(aa) {}

@@ -31,7 +31,7 @@ class PhysicsObject; // Forward declaration
 
 /// Callback type for physics events (returns void, takes delta time,
 ///     physics object, other physics objects, and number of objects)
-typedef std::function<void(float, PhysicsObject*, PhysicsObject**, int)> PhysicsCallback;
+typedef std::function<void(float, PhysicsObject*, PhysicsObject**, int)> PhysicsCallback_t;
 
 typedef struct CollisionResult {
     PhysicsObject** CollidedObjects;
@@ -73,7 +73,7 @@ public:
 
     bool bUsePhysics = true;
 
-    PhysicsCallback PhysicsCallback;
+    PhysicsCallback_t PhysicsCallback;
 
     NO_DISCARD EPhysicsObjectType GetType() const;
 

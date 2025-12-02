@@ -31,6 +31,7 @@ To get started with the Miller Physics Engine, follow these steps:
    - C++17 compatible compiler
    - CMake 3.10 or higher
    - CUDA Toolkit (if using GPU acceleration which is currently the only option)
+   - Visual Studio 2019 or later (for Windows users)
 
 2. Clone the repository:
    ```bash
