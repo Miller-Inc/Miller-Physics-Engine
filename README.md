@@ -61,4 +61,9 @@ designed, and initial implementations of rigid body dynamics and collision detec
 We are actively working on optimizing performance and ensuring the engine can handle complex 
 simulations efficiently.
 
+Example of Physics Engine with skybox as of December 4, 2025:
+![Screen Shot 12-04-2025](Resources/Miller%20Inc%20Content%20-%20Physics%20Engine%20Skybox%20Update.png)
+
+
+Example of Physics Engine in action as of December 1, 2025:
 ![Recording 12-01-2025](Resources/Miller%20Inc%20Content%20-%20Physics%20Engine%20Preview.gif)
