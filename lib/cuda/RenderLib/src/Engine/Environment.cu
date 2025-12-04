@@ -12,20 +12,19 @@
 #include <fstream>
 #include <ranges>
 #include "nlohmann/json.hpp"
-#include <filesystem>
-#include <iostream>
 using json = nlohmann::json;
 
 
 // pack to 0xAARRGGBB
-__device__ __host__ inline uint32_t packRGBA8(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255)
+__device__ __host__ inline uint32_t packRGBA8(const uint8_t b, const uint8_t g, const uint8_t r, const uint8_t a = 255)
 {
-    return (uint32_t(a) << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | uint32_t(b);
+    return (uint32_t(a) << 24) | (uint32_t(b) << 16) | (uint32_t(g) << 8) | uint32_t(r);
 }
 
 // device helper: sample equirectangular panorama (nearest)
 // expects 'dir' normalized
-__device__ inline Vector SampleEquirectangular(const uint8_t* pixels, int w, int h, int c, const Vector dir)
+__device__ inline Vector SampleEquirectangular(const uint8_t* pixels, const unsigned int w,
+    const unsigned int h,const unsigned int c, const Vector dir)
 {
     // u: [0,1] = 0.5 + atan2(z,x) / (2*pi)
     // v: [0,1] = 0.5 - asin(y) / pi
@@ -36,12 +35,12 @@ __device__ inline Vector SampleEquirectangular(const uint8_t* pixels, int w, int
     u = u - floorf(u);
     v = fminf(1.0f, fmaxf(0.0f, v));
 
-    int ix = int(u * float(w));
-    int iy = int(v * float(h));
+    unsigned int ix = int(u * float(w));
+    unsigned int iy = int(v * float(h));
     if (ix < 0) ix = 0; if (ix >= w) ix = w - 1;
     if (iy < 0) iy = 0; if (iy >= h) iy = h - 1;
 
-    const int idx = (iy * w + ix) * c;
+    const unsigned int idx = (iy * w + ix) * c;
     Vector out; out.x = out.y = out.z = 0.0f;
     if (c >= 3) {
         out.x = float(pixels[idx + 0]) / 255.0f;
@@ -78,7 +77,7 @@ __global__ void renderKernel(const BVHNode* d_nodes, const int nodeCount,
 
     dir = Quaternion::RotateVectorByQuaternion(dir.normalize(), camOrient);
 
-    int hit = traverseBVH(d_nodes, nodeCount, d_tris, d_points, camOrigin, dir);
+    const int hit = traverseBVH(d_nodes, nodeCount, d_tris, d_points, camOrigin, dir);
 
     uint32_t color;
     if (hit >= 0) {
@@ -87,9 +86,9 @@ __global__ void renderKernel(const BVHNode* d_nodes, const int nodeCount,
     } else {
         if (skyboxPtr && skyboxWidth > 0 && skyboxHeight > 0 && skyboxChannels > 0) {
             Vector colf = SampleEquirectangular(skyboxPtr, skyboxWidth, skyboxHeight, skyboxChannels, dir.normalize());
-            uint8_t r = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.x * 255.0f)));
-            uint8_t g = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.y * 255.0f)));
-            uint8_t b = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.z * 255.0f)));
+            const auto r = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.x * 255.0f)));
+            const auto g = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.y * 255.0f)));
+            const auto b = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.z * 255.0f)));
             // Swap R/B to match display format
             color = packRGBA8(b, g, r);
         } else {
