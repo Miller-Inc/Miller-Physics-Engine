@@ -30,6 +30,10 @@ int main()
         {
             viewport.Tick(deltaTime);
         },
+        [&viewport]()
+        {
+            viewport.Close();
+        },
         &viewport.isOpen
     };
 

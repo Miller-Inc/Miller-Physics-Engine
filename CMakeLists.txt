@@ -124,6 +124,12 @@ add_custom_command(TARGET MillerRenderLib POST_BUILD
         $<TARGET_FILE_DIR:MillerRenderLib>/Resources
 )
 
+add_custom_command(TARGET MillerRenderLib POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/lib/cuda/RenderLib/Engine_Resources
+        $<TARGET_FILE_DIR:MillerRenderLib>/Engine_Resources
+)
+
 # tell the compiler we link the static CUDA runtime
 target_compile_definitions(MillerRenderLib PRIVATE CUDART_STATIC)
 

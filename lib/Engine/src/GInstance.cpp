@@ -590,8 +590,7 @@ void GInstance::Cleanup()
     CleanupVulkanWindow();
     CleanupVulkan();
 
-    SDL_Quit();
-
+    // DO NOT call SDL_Quit() here; the window must be destroyed first by the caller.
     free(mSetup);
 }
 
@@ -849,17 +848,26 @@ int GInstance::Program()
             FramePresent(wd);
     }
 
+    for (const auto &Window : mWindows | std::views::values)
+    {
+        if (Window.CleanupCallback)
+        {
+            Window.CleanupCallback();
+        }
+    }
 
     // [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppQuit() function]
     err = vkDeviceWaitIdle(g_Device);
     check_vk_result(err);
 
-    // Cleanup
+    // Cleanup engine / graphics objects (but don't quit SDL here)
     Cleanup();
 
+    // Destroy the SDL window while SDL subsystems are still active
     SDL_DestroyWindow(window);
 
-
+    // Now quit SDL
+    SDL_Quit();
 
     return 0;
 }

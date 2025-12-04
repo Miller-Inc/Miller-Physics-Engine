@@ -3,11 +3,13 @@
 //
 
 #pragma once
+#include <map>
 #include <vector>
 #include "EngineClock.h"
 #include "Engine/EngineCommon.h"
 #include "Physics/PhysicsObject.cuh"
 #include "Rendering/Camera.cuh"
+#define DEFAULT_ENGINE_RESOURCES_PATH "Engine_Resources/Resources.json"
 
 
 class Environment
@@ -25,6 +27,12 @@ public:
 
     NO_DISCARD bool IsTicking() const { return bIsTicking; }
     void SetTicking(const bool bTick) { bIsTicking = bTick; }
+
+    void SetSkybox(const ImageFileData& SkyboxImageData);
+
+    void SetSkybox(const std::string& SkyboxImagePath);
+
+    void FreeSkybox();
 
     template<typename T>
     PhysicsObject* SpawnPhysicsObject(EPhysicsObjectType Type = EPhysicsObjectType_Dynamic,
@@ -61,6 +69,10 @@ public:
         return TypedObject;
     }
 
+    bool ScanIndexedResources(const std::string& ResourceFilePath);
+
+    void AddResource(const std::string& ResourceName, const std::string& ResourceFilePath);
+
 protected:
     std::vector<PhysicsObject*> PhysicsObjects{};
 
@@ -76,9 +88,16 @@ protected:
     std::vector<PhysicsObject*> KinematicPhysicsObjects{};
     std::vector<PhysicsObject*> AllTypePhysicsObjects{};
 
+    /// Path to resource json index
+    std::string ResourcesPath{};
+
+    ImageFileData SkyboxImageData{};
+
 private:
     bool bIsTicking = false;
     int64_t mIdentifier = 0;
+
+    std::map<std::string, ImageFileData> mResourceMap{};
 
     DeltaTimer EngineClock{}; // Delta timer for tracking time between ticks
 };

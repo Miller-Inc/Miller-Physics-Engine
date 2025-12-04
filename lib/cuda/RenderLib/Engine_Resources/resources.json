@@ -1,0 +1,8 @@
+{
+  "images": [
+    {
+      "path": "Engine_Resources/Textures/skybox.png",
+      "name": "Default Skybox"
+    }
+  ]
+}

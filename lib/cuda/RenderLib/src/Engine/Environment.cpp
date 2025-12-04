@@ -18,5 +18,12 @@ Environment::~Environment()
 
 void Environment::Destroy()
 {
+    FreeSkybox();
+    for (PhysicsObject* obj : PhysicsObjects)
+    {
+        obj->EndPlay();
+        delete obj;
+    }
+    PhysicsObjects.clear();
 }
 

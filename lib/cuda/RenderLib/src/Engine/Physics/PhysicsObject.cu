@@ -122,6 +122,19 @@ void PhysicsObject::BeginPlay()
 
 void PhysicsObject::EndPlay()
 {
+    cudaDeviceSynchronize();
+    if (Points != nullptr)
+    {
+        cudaFree(Points);
+        Points = nullptr;
+        PointsCount = 0;
+    }
+    if (Triangles != nullptr)
+    {
+        cudaFree(Triangles);
+        Triangles = nullptr;
+        TrianglesCount = 0;
+    }
 }
 
 int64_t PhysicsObject::GetIdentifier() const

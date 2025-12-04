@@ -7,7 +7,15 @@
 #include "Engine/Physics/PhysicsObject.cuh"
 #include "Engine/Rendering/BVHBuilder.h"
 #include "Engine/Rendering/BVHTraverse.cuh"
+#include <cmath>
 #include <cuda_runtime.h>
+#include <fstream>
+#include <ranges>
+#include "nlohmann/json.hpp"
+#include <filesystem>
+#include <iostream>
+using json = nlohmann::json;
+
 
 // pack to 0xAARRGGBB
 __device__ __host__ inline uint32_t packRGBA8(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255)
@@ -15,18 +23,51 @@ __device__ __host__ inline uint32_t packRGBA8(uint8_t r, uint8_t g, uint8_t b, u
     return (uint32_t(a) << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | uint32_t(b);
 }
 
+// device helper: sample equirectangular panorama (nearest)
+// expects 'dir' normalized
+__device__ inline Vector SampleEquirectangular(const uint8_t* pixels, int w, int h, int c, const Vector dir)
+{
+    // u: [0,1] = 0.5 + atan2(z,x) / (2*pi)
+    // v: [0,1] = 0.5 - asin(y) / pi
+    float u = 0.5f + atan2f(dir.z, dir.x) * (1.0f / (2.0f * PI));
+    float v = 0.5f - asinf(fmaxf(-1.0f, fminf(1.0f, dir.y))) * (1.0f / PI);
+
+    // wrap u, clamp v
+    u = u - floorf(u);
+    v = fminf(1.0f, fmaxf(0.0f, v));
+
+    int ix = int(u * float(w));
+    int iy = int(v * float(h));
+    if (ix < 0) ix = 0; if (ix >= w) ix = w - 1;
+    if (iy < 0) iy = 0; if (iy >= h) iy = h - 1;
+
+    const int idx = (iy * w + ix) * c;
+    Vector out; out.x = out.y = out.z = 0.0f;
+    if (c >= 3) {
+        out.x = float(pixels[idx + 0]) / 255.0f;
+        out.y = float(pixels[idx + 1]) / 255.0f;
+        out.z = float(pixels[idx + 2]) / 255.0f;
+    } else if (c == 1) {
+        float v0 = float(pixels[idx]) / 255.0f;
+        out.x = out.y = out.z = v0;
+    }
+    return out;
+}
+
 __global__ void renderKernel(const BVHNode* d_nodes, const int nodeCount,
                              const Triangle* d_tris, const Vector* d_points,
                              uint32_t* d_pixels, const int width, const int height,
-                             const Vector camOrigin, const Quaternion camOrient, const float fov)
+                             const Vector camOrigin, const Quaternion camOrient, const float fov,
+                             const uint8_t* skyboxPtr, const unsigned int skyboxWidth = 0,
+                             const unsigned int skyboxHeight = 0, const unsigned int skyboxChannels = 0)
 {
     const unsigned int px = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int py = blockIdx.y * blockDim.y + threadIdx.y;
     if (px >= width || py >= height) return;
 
     // Normalized Device Coordinates -> View Space
-    const float ndcX = ( (px + 0.5f) / float(width) ) * 2.0f - 1.0f;
-    const float ndcY = ( (py + 0.5f) / float(height) ) * 2.0f - 1.0f;
+    const float ndcX = ( ((float)px + 0.5f) / float(width) ) * 2.0f - 1.0f;
+    const float ndcY = ( ((float)py + 0.5f) / float(height) ) * 2.0f - 1.0f;
     const float aspect = float(width) / float(height);
     const float tanFov = tanf(fov * 0.5f);
 
@@ -44,12 +85,22 @@ __global__ void renderKernel(const BVHNode* d_nodes, const int nodeCount,
         // simple hit color
         color = packRGBA8(200, 40, 40);
     } else {
-        // sky gradient
-        const float t = 0.5f * (dir.y + 1.0f);
-        const auto r = uint8_t((1.0f - t) * 135 + t * 25);
-        const auto g = uint8_t((1.0f - t) * 206 + t * 25);
-        const auto b = uint8_t((1.0f - t) * 235 + t * 112);
-        color = packRGBA8(r, g, b);
+        if (skyboxPtr && skyboxWidth > 0 && skyboxHeight > 0 && skyboxChannels > 0) {
+            Vector colf = SampleEquirectangular(skyboxPtr, skyboxWidth, skyboxHeight, skyboxChannels, dir.normalize());
+            uint8_t r = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.x * 255.0f)));
+            uint8_t g = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.y * 255.0f)));
+            uint8_t b = uint8_t(fminf(255.0f, fmaxf(0.0f, colf.z * 255.0f)));
+            // Swap R/B to match display format
+            color = packRGBA8(b, g, r);
+        } else {
+            // fallback gradient (swap here too)
+            const float t = 0.5f * (dir.y + 1.0f);
+            const auto rr = uint8_t((1.0f - t) * 135 + t * 25);
+            const auto gg = uint8_t((1.0f - t) * 206 + t * 25);
+            const auto bb = uint8_t((1.0f - t) * 235 + t * 112);
+            color = packRGBA8(bb, gg, rr);
+        }
+
     }
 
     d_pixels[py * width + px] = color;
@@ -64,6 +115,19 @@ void Environment::Init()
 
     MainCamera.position = Vector(0.0f, 0.0f, 7.5f);
     MainCamera.orientation = Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
+
+    if (ScanIndexedResources(DEFAULT_ENGINE_RESOURCES_PATH))
+    {
+        for (const auto& [name, data] : mResourceMap)
+        {
+            if (name.find("skybox") != std::string::npos || name.find("Skybox") != std::string::npos)
+            {
+                SetSkybox(data);
+                break;
+            }
+        }
+    }
+
 
     EngineClock.Init(); // Initialize the delta timer
     EngineClock.Tick();
@@ -87,6 +151,69 @@ void Environment::TickAll(const float deltaTime)
 RawImage Environment::RenderScene(const int width, const int height) const
 {
     return RenderScene(MainCamera, width, height);
+}
+
+void Environment::SetSkybox(const ImageFileData& SkyboxImageData)
+{
+    this->SkyboxImageData = SkyboxImageData;
+    this->SkyboxImageData.LoadImageFromFileGPU();
+}
+
+void Environment::SetSkybox(const std::string& SkyboxImagePath)
+{
+    std::string name = "Skybox";
+    SkyboxImageData = ImageFileData(name, SkyboxImagePath);
+    this->SkyboxImageData.LoadImageFromFileGPU();
+}
+
+void Environment::FreeSkybox()
+{
+    cudaDeviceSynchronize();
+    SkyboxImageData.FreeImageData();
+}
+
+bool Environment::ScanIndexedResources(const std::string& ResourceFilePath)
+{
+    mResourceMap.clear();
+
+    ResourcesPath = ResourceFilePath;
+
+    std::ifstream file(ResourceFilePath);
+    if (!file.is_open())
+    {
+        return false;
+    }
+
+    json json_object = json::parse(file);
+    auto images = json_object["images"];
+
+    if (images == json::value_t::discarded || !images.is_array())
+    {
+        return false;
+    }
+
+    // auto img_arr = images->array();
+    static unsigned int un_labeled_resource_id = 0;
+
+    for (const auto& resource : images)
+    {
+        ImageFileData data;
+        data.path = resource.value("path", "");
+        data.name = resource.value("name", "Object_" + std::to_string(un_labeled_resource_id++));
+
+        mResourceMap.emplace(data.name, data);
+    }
+
+    return true;
+}
+
+void Environment::AddResource(const std::string& ResourceName, const std::string& ResourceFilePath)
+{
+    ImageFileData data;
+    data.path = ResourceFilePath;
+    data.name = ResourceName;
+
+    mResourceMap.emplace(data.name, data);
 }
 
 RawImage Environment::RenderScene(const Camera& camera, int width, int height) const
@@ -171,10 +298,21 @@ RawImage Environment::RenderScene(const Camera& camera, int width, int height) c
     dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y);
     const auto camOrigin = camera.position;
     const auto camOrient = camera.orientation;
-    const float fovRad = camera.fov * 3.14159265f / 180.0f;
+    const float fovRad = camera.fov * PI / 180.0f;
+
+    const uint8_t* skyboxPtr = nullptr;
+    unsigned int skyboxWidth = 0, skyboxHeight = 0, skyboxChannels = 0;
+    if (SkyboxImageData.bLoadedGPU && SkyboxImageData.GPUImage)
+    {
+        skyboxPtr = (uint8_t*)SkyboxImageData.GPUImage->DevicePixels;
+        skyboxWidth = SkyboxImageData.metadata.width;
+        skyboxHeight = SkyboxImageData.metadata.height;
+        skyboxChannels = SkyboxImageData.metadata.numChannels;
+    }
 
     renderKernel<<<grid, block>>>(d_nodes, nodeCount, d_tris, d_points, d_pixels,
-        W, H, camOrigin, camOrient, fovRad);
+        W, H, camOrigin, camOrient, fovRad, skyboxPtr,
+        skyboxWidth, skyboxHeight, skyboxChannels);
     cudaDeviceSynchronize();
 
     // DO NOT copy back. Return a GPU-backed RawImage.

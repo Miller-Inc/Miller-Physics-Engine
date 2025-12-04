@@ -9,6 +9,15 @@
 #include "Engine/Quaternion.cuh"
 #include "Color.cuh"
 #include <functional>
+#include <utility>
+
+typedef struct ImageMetadata
+{
+    unsigned int width;
+    unsigned int height;
+    unsigned int numChannels; // e.g., 3 for RGB, 4 for RGBA
+    unsigned int bitsPerChannel; // e.g., 8, 16, 32
+} ImageMetadata;
 
 typedef struct RawImage
 {
@@ -27,7 +36,18 @@ typedef struct RawImage
     // Call to release GPU allocations (safe to call multiple times)
     void ReleaseDevice()
     {
-        if (ReleaseCallback)
+        if (ReleaseCallback && IsDevice)
+        {
+            ReleaseCallback(*this);
+            ReleaseCallback = nullptr;
+            DevicePixels = nullptr;
+            IsDevice = false;
+        }
+    }
+
+    void Release()
+    {
+        if (ReleaseCallback && !IsDevice)
         {
             ReleaseCallback(*this);
             ReleaseCallback = nullptr;
@@ -36,6 +56,59 @@ typedef struct RawImage
         }
     }
 } RawImage;
+
+static void DefaultGPURawImageRelease(RawImage& img)
+{
+    if (img.DevicePixels)
+    {
+        cudaFree(img.DevicePixels);
+        img.DevicePixels = nullptr;
+    }
+    img.IsDevice = false;
+}
+
+static void DefaultHostRawImageRelease(RawImage& img)
+{
+    if (img.Pixels)
+    {
+        delete[] img.Pixels;
+        img.Pixels = nullptr;
+    }
+
+    img.IsDevice = false;
+}
+
+typedef struct ImageFileData
+{
+    ImageFileData() noexcept = default;
+    ImageFileData(std::string  name, std::string  path) : name(std::move(name)), path(std::move(path)) {}
+
+    /// Image name or identifier
+    std::string name;
+    /// File path on disk
+    std::string path;
+    /// Metadata about the image
+    ImageMetadata metadata{};
+
+    /// Flag indicating if the image was successfully loaded
+    bool bLoaded = false;
+
+    /// Flag indicating if the image was successfully loaded to GPU
+    bool bLoadedGPU = false;
+
+    /// Pointer to the raw image data (only valid if loaded is true)
+    RawImage* image = nullptr;
+
+    /// Pointer to the GPU image data (only valid if bLoadedGPU is true)
+    RawImage* GPUImage = nullptr; // GPU version of the image
+
+    bool LoadImageFromFile();
+    bool LoadImageFromFileGPU();
+    void FreeImageData();
+    ~ImageFileData() {
+        FreeImageData();
+    }
+} ImageFileData;
 
 typedef struct Camera
 {

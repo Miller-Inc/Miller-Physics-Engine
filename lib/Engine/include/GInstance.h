@@ -27,6 +27,7 @@ class GInstance;
 typedef std::function<void(float)> DrawWindowCallback;
 typedef std::function<void(GInstance*)> InitWindowCallback;
 typedef std::function<void(float)> TickCallback;
+typedef std::function<void()> CleanupCallback_t;
 
 typedef struct m_window
 {
@@ -34,6 +35,7 @@ typedef struct m_window
     DrawWindowCallback DrawCallback;
     InitWindowCallback InitCallback;
     TickCallback Ticker;
+    CleanupCallback_t CleanupCallback;
     bool* OpenWindow = nullptr;
 
 } MWindow;
