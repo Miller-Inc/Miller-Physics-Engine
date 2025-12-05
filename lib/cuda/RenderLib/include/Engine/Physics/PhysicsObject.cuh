@@ -85,6 +85,13 @@ public:
 
     void SetWorld(void* world) { WorldContext = world; }
 
+    std::vector<uint8_t> AlbedoPixels;
+    unsigned int AlbedoW = 0;
+    unsigned int AlbedoH = 0;
+    unsigned int AlbedoC = 0;
+
+    void SetAlbedo(const uint8_t* pixels, unsigned int w, unsigned int h, unsigned int c);
+
 protected:
     Vector Position = {0.0f, 0.0f, 0.0f};
     Quaternion Rotation = {1.0f, 0.0f, 0.0f, 0.0f};

@@ -30,7 +30,8 @@ add_library(RenderLib SHARED
         include/Engine/Rendering/AABB.cuh
         include/Engine/Rendering/BVHNode.cuh
         include/Engine/Rendering/BVHBuilder.h
-        include/Engine/Rendering/BVHTraverse.cuh)
+        include/Engine/Rendering/BVHTraverse.cuh
+        include/Engine/Rendering/Render.cuh)
 
 target_include_directories(RenderLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(RenderLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb)

@@ -3,13 +3,159 @@
 //
 
 #include "Windows/Viewport.h"
+#include <array>
 #include "Vulkan/VulkanHelpers.h"
-#include <cuda_runtime.h>
 #include <vector>
 #include <cstdint>
-
 #include "imgui_impl_vulkan.h"
 #include <SDL3/SDL.h>
+
+static std::vector<uint8_t> MakeCheckerboard(unsigned int w, unsigned int h, unsigned int c,
+                                             const std::array<uint8_t,3>& a,
+                                             const std::array<uint8_t,3>& b,
+                                             unsigned int tileSize = 8)
+{
+    if (c < 3) c = 3; // ensure at least RGB
+    std::vector<uint8_t> pixels;
+    pixels.reserve(size_t(w) * h * c);
+    for (unsigned int y = 0; y < h; ++y) {
+        for (unsigned int x = 0; x < w; ++x) {
+            const bool useA = ((x / tileSize) + (y / tileSize)) % 2 == 0;
+            const auto &col = useA ? a : b;
+            pixels.push_back(col[0]); // R
+            pixels.push_back(col[1]); // G
+            pixels.push_back(col[2]); // B
+            // optional alpha channel: pixels.push_back(255);
+        }
+    }
+    return pixels;
+}
+
+static inline float lerp(float a, float b, float t) { return a + t * (b - a); }
+static inline float smoothstep(float t) { return t * t * (3.0f - 2.0f * t); }
+
+// cheap integer hash -> [0,1)
+static inline float ihash(int x, int y, unsigned int seed)
+{
+    uint32_t h = uint32_t(x) * 374761393u + uint32_t(y) * 668265263u + seed * 974761741u;
+    h = (h ^ (h >> 13)) * 1274126177u;
+    return float(h & 0xFFFFFFu) / float(0x1000000u);
+}
+
+// value noise (bilinear)
+static inline float valueNoise2D(float x, float y, unsigned int seed)
+{
+    const int x0 = int(floorf(x));
+    const int y0 = int(floorf(y));
+    const float fx = x - float(x0);
+    const float fy = y - float(y0);
+    const float sx = smoothstep(fx);
+    const float sy = smoothstep(fy);
+
+    const float n00 = ihash(x0,     y0,     seed);
+    const float n10 = ihash(x0 + 1, y0,     seed);
+    const float n01 = ihash(x0,     y0 + 1, seed);
+    const float n11 = ihash(x0 + 1, y0 + 1, seed);
+
+    const float ix0 = lerp(n00, n10, sx);
+    const float ix1 = lerp(n01, n11, sx);
+    return lerp(ix0, ix1, sy);
+}
+
+// simple FBM
+static inline float fbm2D(float x, float y, unsigned int seed, int octaves = 5, float lacunarity = 2.0f, float gain = 0.5f)
+{
+    float amp = 1.0f;
+    float freq = 1.0f;
+    float sum = 0.0f;
+    float norm = 0.0f;
+    for (int i = 0; i < octaves; ++i)
+    {
+        sum += valueNoise2D(x * freq, y * freq, seed + i * 101) * amp;
+        norm += amp;
+        amp *= gain;
+        freq *= lacunarity;
+    }
+    return sum / norm;
+}
+
+// Generate a natural ground texture: blended grass/dirt with rock speckles.
+// - w/h: texture size
+// - c: channels (will use at least 3)
+// - seed: random seed
+// - scale: base frequency scale (smaller -> larger features)
+static std::vector<uint8_t> MakeNaturalGround(unsigned int w, unsigned int h, unsigned int c,
+                                              unsigned int seed = 1337u, float scale = 0.0045f)
+{
+    if (c < 3) c = 3;
+    std::vector<uint8_t> pixels;
+    pixels.reserve(size_t(w) * h * c);
+
+    // base colors (RGB)
+    const std::array<uint8_t,3> grassA = {100, 150, 70};  // darker grass
+    const std::array<uint8_t,3> grassB = {140, 190, 90};  // lighter grass
+    const std::array<uint8_t,3> dirt   = {115, 85, 55};   // dirt
+    const std::array<uint8_t,3> rock   = {90, 90, 95};    // rock speckle
+
+    // per-pixel
+    for (unsigned int y = 0; y < h; ++y)
+    {
+        for (unsigned int x = 0; x < w; ++x)
+        {
+            // normalized coords
+            const float nx = float(x) / float(w);
+            const float ny = float(y) / float(h);
+
+            // fbm for large-scale terrain variation (controls grass vs dirt)
+            float base = fbm2D(nx / scale, ny / scale, seed + 11, 5, 2.0f, 0.5f);
+
+            // small detail noise for blades/variation
+            float detail = fbm2D(nx / (scale * 4.0f), ny / (scale * 4.0f), seed + 77, 4, 2.0f, 0.45f);
+
+            // rocky speckles (high frequency)
+            float speck = valueNoise2D(nx / (scale * 12.0f), ny / (scale * 12.0f), seed + 333);
+
+            // combine to a single factor in [0,1]
+            float mixVal = std::clamp(base * 0.7f + detail * 0.25f, 0.0f, 1.0f);
+
+            // bias so most plains are grassy, lower values -> dirt
+            const float grassThreshold = 0.45f;
+            float grassFactor = (mixVal - grassThreshold) / (1.0f - grassThreshold);
+            grassFactor = std::clamp(grassFactor, 0.0f, 1.0f);
+
+            // interpolate between dirt and two-tone grass
+            const float grassBlend = (ihash(x, y, seed + 9) * 0.6f + 0.4f); // subtle per-pixel grass tint factor
+            std::array<float,3> col{};
+            for (int k = 0; k < 3; ++k)
+            {
+                float gcol = lerp(float(grassA[k]), float(grassB[k]), grassBlend);
+                float baseCol = lerp(float(dirt[k]), gcol, grassFactor);
+
+                // add fine detail
+                baseCol += (detail - 0.5f) * 18.0f; // small bright/dark variation
+                // rock speckles darken or tint toward rock color
+                if (speck > 0.78f && ihash(x + 7, y + 13, seed + 5) > 0.6f) {
+                    // stronger rock spot
+                    baseCol = lerp(baseCol, float(rock[k]), 0.65f);
+                } else if (speck > 0.72f) {
+                    baseCol = lerp(baseCol, float(rock[k]), 0.28f);
+                }
+
+                // clamp to byte range
+                col[k] = std::clamp(baseCol, 0.0f, 255.0f);
+            }
+
+            // push bytes (RGB)
+            pixels.push_back(uint8_t(col[0]));
+            pixels.push_back(uint8_t(col[1]));
+            pixels.push_back(uint8_t(col[2]));
+            // optional alpha funnel
+            if (c >= 4) pixels.push_back(255);
+        }
+    }
+
+    return pixels;
+}
 
 Viewport::Viewport()
 {
@@ -77,11 +223,18 @@ void Viewport::Init(const std::string& WindowName, GInstance* Instance)
         tri(3, 2, 6), tri(3, 6, 7)
     };
 
+    const unsigned int texW = 64;
+    const unsigned int texH = 64;
+    const unsigned int texC = 3; // RGB
+    constexpr std::array<uint8_t,3> lightCol = {200, 50, 200};
+    constexpr std::array<uint8_t,3> darkCol  = {30, 30, 50};
+    auto checker = MakeCheckerboard(texW, texH, texC, lightCol, darkCol, 8);
+
     // Upload points & triangles to the PhysicsObject.
     // Existing code used SetPoints(points, count) so assume SetTriangles(tris, count) exists.
     obj1->SetPoints(cubePoints.data(), (int)cubePoints.size());
     obj1->SetTriangles(cubeTris.data(), (int)cubeTris.size());
-    obj1->SetPosition({0.0f, -5.0f, 0.0f}); // Move object 2 to the left
+    obj1->SetPosition({0.0f, 5.0f, 0.0f}); // Move object 2 to the left
     obj1->PhysicsCallback = [](const float deltaTime, PhysicsObject* obj, PhysicsObject**, int) {
         // Simple rotation over time
         static float time = 0.0f; time += deltaTime;
@@ -90,11 +243,40 @@ void Viewport::Init(const std::string& WindowName, GInstance* Instance)
 
     obj2->SetPoints(cubePoints.data(), (int)cubePoints.size());
     obj2->SetTriangles(cubeTris.data(), (int)cubeTris.size());
-    obj2->SetPosition(Vector(0.0f, 0.0f, 0.0f)); // Move object 2 to the right
+    obj2->SetPosition(Vector(0.0f, 10.0f, 0.0f)); // Move object 2 to the right
     obj2->rotation_amount = { PI/1.5f, -(PI/1.5f) , 0.0f };
     obj2->PhysicsCallback = [](const float deltaTime, PhysicsObject* obj, PhysicsObject**, int) {
         // Simple rotation over time
         obj->Rotate({deltaTime * PI, 0.0f,0.0f});
+    };
+
+    obj1->SetAlbedo(checker.data(), texW, texH, texC);
+    obj2->SetAlbedo(checker.data(), texW, texH, texC);
+
+    PhysicsObject* floor = mEnvironment.SpawnPhysicsObject<PhysicsObject>();
+    const std::vector<Vector> floorPoints = {
+        Vector(-100.0f, 0.0f, -100.0f),
+        Vector( 100.0f, 0.0f, -100.0f),
+        Vector( 100.0f, 0.0f,  100.0f),
+        Vector(-100.0f, 0.0f,  100.0f)
+    };
+    const std::vector<Triangle> floorTris = {
+        tri(0, 1, 2), tri(0, 2, 3)
+    };
+    floor->SetPoints(floorPoints.data(), (int)floorPoints.size());
+    floor->SetTriangles(floorTris.data(), (int)floorTris.size());
+    floor->SetPosition(Vector(0.0f, -1.0f, 0.0f));
+    floor->SetType(EPhysicsObjectType_Static);
+
+    const unsigned int groundW = 1024;
+    const unsigned int groundH = 1024;
+    const unsigned int groundC = 3;
+    auto groundTex = MakeNaturalGround(groundW, groundH, groundC, 123456u, 0.0045f);
+    floor->SetAlbedo(groundTex.data(), groundW, groundH, groundC);
+
+    floor->PhysicsCallback = [](const float deltaTime, PhysicsObject* obj, PhysicsObject**, int)
+    {
+        // Static object; no update needed as yet (collisions to come later)
     };
 }
 

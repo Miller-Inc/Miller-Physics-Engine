@@ -236,7 +236,6 @@ void PhysicsObject::TranslateRotate(const Vector& translation, const Vector& rot
     TransRot_Kernel<<<blocks, threads>>>(Points, translation, rotationQuat, centroid, count);
 }
 
-
 void PhysicsObject::SetPoints(const Vector* points, const size_t points_count)
 {
     PointsCount = points_count;
@@ -292,23 +291,34 @@ void PhysicsObject::CreateTrianglesFromPoints(const size_t* triangle_indices, si
         return; // Not enough points to create triangles
     }
 
-    std::vector<Triangle> triangles_host(triangle_count);
+    std::vector<Triangle> triangles_host(triangle_count / 3);
 
-    for (size_t i = 0; i < triangle_count; i += 3)
+    for (size_t t = 0; t < triangle_count; t += 3)
     {
-        const size_t idx1 = triangle_indices[i];
-        const size_t idx2 = triangle_indices[(i + 1)];
-        const size_t idx3 = triangle_indices[(i + 2)];
+        const size_t idx1 = triangle_indices[t];
+        const size_t idx2 = triangle_indices[t + 1];
+        const size_t idx3 = triangle_indices[t + 2];
         if (idx1 >= PointsCount || idx2 >= PointsCount || idx3 >= PointsCount)
         {
             printf("Error: Triangle index out of bounds (idx1: %llu, idx2: %llu, idx3: %llu, PointsCount: %llu)\n",
                 (unsigned long long)idx1, (unsigned long long)idx2, (unsigned long long)idx3, (unsigned long long)PointsCount);
-            continue; // Skip invalid triangle
+            continue;
         }
-        triangles_host[i / 3] = Triangle{ idx1, idx2, idx3 };
+
+        Triangle tri;
+        tri.i0 = static_cast<unsigned int>(idx1);
+        tri.i1 = static_cast<unsigned int>(idx2);
+        tri.i2 = static_cast<unsigned int>(idx3);
+
+        // Do NOT encode per-triangle owner here. Leave as invalid sentinel so
+        // the Environment can set the owner/material id when assembling the scene.
+        tri.materialIndex = 0xFFFFFFFFu;
+
+        triangles_host[t / 3] = tri;
     }
 
     const auto tris = triangles_host.data();
+    const size_t trisCount = triangles_host.size();
 
     if (Triangles != nullptr)
     {
@@ -317,9 +327,9 @@ void PhysicsObject::CreateTrianglesFromPoints(const size_t* triangle_indices, si
         TrianglesCount = 0;
     }
 
-    cudaMalloc(&Triangles, triangle_count * sizeof(Triangle));
-    cudaMemcpy(Triangles, tris, triangle_count * sizeof(Triangle), cudaMemcpyHostToDevice);
-    TrianglesCount = triangle_count;
+    cudaMalloc(&Triangles, trisCount * sizeof(Triangle));
+    cudaMemcpy(Triangles, tris, trisCount * sizeof(Triangle), cudaMemcpyHostToDevice);
+    TrianglesCount = trisCount;
 }
 
 std::vector<Vector> PhysicsObject::GetPoints() const
@@ -416,6 +426,14 @@ void PhysicsObject::Tick(const float deltaTime, PhysicsObject** allObjects, cons
     }
 
 }
+
+void PhysicsObject::SetAlbedo(const uint8_t* pixels, unsigned int w, unsigned int h, unsigned int c)
+{
+    if (w == 0 || h == 0 || c == 0) { AlbedoPixels.clear(); AlbedoW = AlbedoH = AlbedoC = 0; return; }
+    AlbedoW = w; AlbedoH = h; AlbedoC = c;
+    AlbedoPixels.assign(pixels, pixels + size_t(w) * size_t(h) * size_t(c));
+}
+
 std::vector<CollisionResult> PhysicsObject::CollisionCheck(PhysicsObject** allObjects, const int objectCount) const
 {
     switch (mCollisionChannel)

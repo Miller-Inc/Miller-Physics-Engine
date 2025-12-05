@@ -9,6 +9,7 @@
 typedef struct Triangle
 {
     unsigned long int i0 = 0, i1 = 0, i2 = 0;
+    unsigned long int materialIndex = 0; // index into material array
     Triangle() = default;
     Triangle(const size_t size, const size_t idx2, const size_t idx3) : i0(size), i1(idx2), i2(idx3) {}
     CUDA_CALLABLE_MEMBER Vector centroid(const Vector* vertices) const noexcept
